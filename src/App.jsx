@@ -6,7 +6,7 @@ import PostCard from './components/PostCard';
 import CreatePost from './components/CreatePost';
 import EditPost from './components/EditPost';
 import PostDetail from './components/PostDetail';
-import { supabase } from './utils/supabaseClient';
+import { supabase } from './utils/supabaseclient';
 
 function App() {
   const [posts, setPosts] = useState([]);
