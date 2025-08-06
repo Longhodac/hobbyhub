@@ -6,16 +6,16 @@ import PostCard from './components/PostCard';
 import CreatePost from './components/CreatePost';
 import EditPost from './components/EditPost';
 import PostDetail from './components/PostDetail';
-import { initialPosts } from './data/mockData';
-// import { supabase } from './utils/supabaseClient'; // Uncomment when ready to use Supabase
+import { supabase } from './utils/supabaseClient';
 
 function App() {
-  const [posts, setPosts] = useState(initialPosts);
+  const [posts, setPosts] = useState([]);
   const [currentView, setCurrentView] = useState('home');
   const [selectedPost, setSelectedPost] = useState(null);
   const [editingPost, setEditingPost] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
+  const [loading, setLoading] = useState(true);
 
   // Utility function to format time
   const formatTimeAgo = (timestamp) => {
@@ -29,6 +29,35 @@ function App() {
     return 'Just now';
   };
 
+  // Fetch posts from Supabase
+  const fetchPosts = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          comments (*)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching posts:', error);
+      } else {
+        setPosts(data || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load posts on component mount
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
   // Filter and sort posts
   const filteredAndSortedPosts = posts
     .filter(post => post.title.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -39,74 +68,166 @@ function App() {
       return new Date(b.created_at) - new Date(a.created_at);
     });
 
-  // Post operations
-  const handleCreatePost = (newPostData) => {
-    const post = {
-      id: posts.length + 1,
-      ...newPostData,
-      upvotes: 0,
-      comments: [],
-      created_at: new Date()
-    };
+  // Create post with Supabase
+  const handleCreatePost = async (newPostData) => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .insert([{
+          title: newPostData.title,
+          content: newPostData.content,
+          image: newPostData.image,
+          secret_key: newPostData.secret_key
+        }])
+        .select();
 
-    setPosts([post, ...posts]);
-    setCurrentView('home');
+      if (error) {
+        console.error('Error creating post:', error);
+        alert('Error creating post. Please try again.');
+      } else {
+        await fetchPosts(); // Refresh posts
+        setCurrentView('home');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error creating post. Please try again.');
+    }
   };
 
-  const handleUpdatePost = (updatedPost) => {
-    setPosts(posts.map(post => 
-      post.id === updatedPost.id 
-        ? { ...post, title: updatedPost.title, content: updatedPost.content, image: updatedPost.image }
-        : post
-    ));
-    setEditingPost(null);
-    setCurrentView('post');
+  // Update post with Supabase
+  const handleUpdatePost = async (updatedPost) => {
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .update({
+          title: updatedPost.title,
+          content: updatedPost.content,
+          image: updatedPost.image
+        })
+        .eq('id', updatedPost.id);
+
+      if (error) {
+        console.error('Error updating post:', error);
+        alert('Error updating post. Please try again.');
+      } else {
+        await fetchPosts(); // Refresh posts
+        setEditingPost(null);
+        setCurrentView('post');
+        // Update selectedPost with new data
+        const updatedPostData = posts.find(p => p.id === updatedPost.id);
+        if (updatedPostData) {
+          setSelectedPost({
+            ...updatedPostData,
+            title: updatedPost.title,
+            content: updatedPost.content,
+            image: updatedPost.image
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error updating post. Please try again.');
+    }
   };
 
-  const handleDeletePost = (authKey) => {
+  // Delete post with Supabase
+  const handleDeletePost = async (authKey) => {
     if (authKey !== selectedPost.secret_key) {
       alert('Invalid secret key!');
       return;
     }
 
-    setPosts(posts.filter(post => post.id !== selectedPost.id));
-    setCurrentView('home');
-  };
+    try {
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', selectedPost.id);
 
-  const handleUpvote = (postId) => {
-    setPosts(posts.map(post => 
-      post.id === postId ? { ...post, upvotes: post.upvotes + 1 } : post
-    ));
-    // Update selectedPost if it's the one being upvoted
-    if (selectedPost && selectedPost.id === postId) {
-      setSelectedPost({ ...selectedPost, upvotes: selectedPost.upvotes + 1 });
+      if (error) {
+        console.error('Error deleting post:', error);
+        alert('Error deleting post. Please try again.');
+      } else {
+        await fetchPosts(); // Refresh posts
+        setCurrentView('home');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error deleting post. Please try again.');
     }
   };
 
-  const handleAddComment = (commentText) => {
-    const comment = {
-      id: Date.now(),
-      text: commentText,
-      created_at: new Date()
-    };
+  // Upvote post with Supabase
+  const handleUpvote = async (postId) => {
+    try {
+      const post = posts.find(p => p.id === postId);
+      if (!post) return;
 
-    setPosts(posts.map(post => 
-      post.id === selectedPost.id 
-        ? { ...post, comments: [...(post.comments || []), comment] }
-        : post
-    ));
+      const { error } = await supabase
+        .from('posts')
+        .update({ upvotes: post.upvotes + 1 })
+        .eq('id', postId);
 
-    // Update selectedPost to reflect new comment
-    setSelectedPost({ 
-      ...selectedPost, 
-      comments: [...(selectedPost.comments || []), comment] 
-    });
+      if (error) {
+        console.error('Error upvoting post:', error);
+      } else {
+        await fetchPosts(); // Refresh posts
+        // Update selectedPost if it's the one being upvoted
+        if (selectedPost && selectedPost.id === postId) {
+          setSelectedPost({ ...selectedPost, upvotes: selectedPost.upvotes + 1 });
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
+
+  // Add comment with Supabase
+  const handleAddComment = async (commentText) => {
+    try {
+      const { error } = await supabase
+        .from('comments')
+        .insert([{
+          post_id: selectedPost.id,
+          text: commentText
+        }]);
+
+      if (error) {
+        console.error('Error adding comment:', error);
+        alert('Error adding comment. Please try again.');
+      } else {
+        await fetchPosts(); // Refresh posts to get new comment
+        // Update selectedPost with new comments
+        const updatedPost = posts.find(p => p.id === selectedPost.id);
+        if (updatedPost) {
+          setSelectedPost(updatedPost);
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error adding comment. Please try again.');
+    }
   };
 
   const handleSelectPost = (post) => {
     setSelectedPost(post);
     setCurrentView('post');
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="app-container">
+        <Header showControls={false} />
+        <main className="main-content py-6">
+          <div className="empty-state">
+            <Camera className="empty-state-icon" />
+            <h3>Loading...</h3>
+            <p>Getting your photography posts ready!</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // Home View
   if (currentView === 'home') {

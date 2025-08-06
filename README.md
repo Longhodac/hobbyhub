@@ -72,7 +72,7 @@ Here's a walkthrough of implemented user stories:
 <img src='https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExdDZjYmx6czI5M2U2aTM1MzBhbDdoY2c0aTB5d2NxdHRqNzAzcXNjbSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/ufwQWUKjORFU4LnLfA/giphy.gif' title='Video Walkthrough' width='' alt='Video Walkthrough' />
 
 <!-- Replace this with whatever GIF tool you used! -->
-GIF created with ...  
+GIF created with screentoif  
 <!-- Recommended tools:
 [Kap](https://getkap.co/) for macOS
 [ScreenToGif](https://www.screentogif.com/) for Windows
